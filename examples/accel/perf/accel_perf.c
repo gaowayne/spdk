@@ -40,7 +40,7 @@
 #include "spdk/accel_engine.h"
 #include "spdk/crc32.h"
 #include "spdk/util.h"
-
+#include "libpmem.h"//pmem
 #define DATA_PATTERN 0x5a
 #define ALIGN_4K 0x1000
 
@@ -80,6 +80,7 @@ struct ap_task {
 	uint32_t		iov_cnt;
 	void			*dst;
 	void			*dst2;
+	void                    *dst_pmem;//pmem
 	uint32_t		crc_dst;
 	struct worker_thread	*worker;
 	int			expected_status; /* used for the compare operation */
@@ -233,6 +234,14 @@ parse_args(int argc, char *argv)
 }
 
 static int dump_result(void);
+
+//
+//define pmem memory for devdax
+//
+void *g_pmem_buf = 0;
+size_t pmem_len  = 0;
+unsigned int seed;
+//end pmem define
 static void
 unregister_worker(void *arg1)
 {
@@ -356,7 +365,12 @@ _submit_single(struct worker_thread *worker, struct ap_task *task)
 
 	switch (g_workload_selection) {
 	case ACCEL_OPC_COPY:
-		rc = spdk_accel_submit_copy(worker->ch, task->dst, task->src,
+		//
+		//before copy assign dst_pmem with random
+		//
+		task->dst_pmem = g_pmem_buf + rand_r(&seed) % pmem_len; 
+
+		rc = spdk_accel_submit_copy(worker->ch, task->dst_pmem, task->src,
 					    g_xfer_size_bytes, flags, accel_done, task);
 		break;
 	case ACCEL_OPC_FILL:
@@ -656,6 +670,34 @@ _init_thread(void *arg1)
 			goto error;
 		}
 		task++;
+	}
+
+	//
+	//init pmem before poller 
+	//
+	int is_pmem;
+	int rc = 0;
+	if ((g_pmem_buf = pmem_map_file("/dev/dax0.0", 131072000 * 4096,//num of blk
+		PMEM_FILE_CREATE, 0666, &pmem_len, &is_pmem)) == NULL) {
+		fprintf(stderr, "Failed to mmap /dev/dax0.0 /xx\n");
+		return -1;
+	}
+
+	if (!is_pmem) {
+		fprintf(stderr, " wsrpmem mapped on non-pmem device\n");
+	}
+
+	if (pmem_len < 131072000 * 4096) {
+		fprintf(stderr, "/dev/dax0.0 file is too small\n");
+		return -1;
+	}
+
+        rc = spdk_mem_register((void *)g_pmem_buf, pmem_len);
+        if (rc) {
+                fprintf(stderr, "spdk_mem_register() failed\n");
+                return -1;
+	} else {
+		fprintf(stderr," wsrpmem spdk_mem_register at: 0x%p\n", g_pmem_buf);
 	}
 
 	/* Register a poller that will stop the worker at time elapsed */

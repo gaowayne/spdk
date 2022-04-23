@@ -41,4 +41,5 @@ C_SRCS := accel_perf.c
 
 SPDK_LIB_LIST = $(ACCEL_MODULES_LIST) event event_accel
 
+SYS_LIBS += -lpmem
 include $(SPDK_ROOT_DIR)/mk/spdk.app.mk
