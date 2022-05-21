@@ -1270,6 +1270,7 @@ register_ns(struct spdk_nvme_ctrlr *ctrlr, struct spdk_nvme_ns *ns)
 		printf("WARNING: IO size %u (-o) is not a multiple of nsid %u sector size %u."
 		       " Removing this ns from test\n", g_io_size_bytes, spdk_nvme_ns_get_id(ns), entry->block_size);
 		g_warn = true;
+		spdk_zipf_free(&entry->zipf);
 		free(entry);
 		return;
 	}
@@ -1673,6 +1674,7 @@ work_fn(void *arg)
 				TAILQ_FOREACH(ns_ctx, &worker->ns_ctx, link) {
 					memset(&ns_ctx->stats, 0, sizeof(ns_ctx->stats));
 					ns_ctx->stats.min_tsc = UINT64_MAX;
+					spdk_histogram_data_reset(ns_ctx->histogram);
 				}
 
 				if (worker->lcore == g_main_core && isatty(STDOUT_FILENO)) {

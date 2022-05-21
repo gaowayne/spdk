@@ -39,7 +39,7 @@ APP = vhost
 
 C_SRCS := vhost.c
 
-SPDK_LIB_LIST = $(ALL_MODULES_LIST) event event_vhost event_nbd
+SPDK_LIB_LIST = $(ALL_MODULES_LIST) event event_vhost_blk event_vhost_scsi event_nbd
 
 ifeq ($(SPDK_ROOT_DIR)/lib/env_dpdk,$(CONFIG_ENV))
 SPDK_LIB_LIST += env_dpdk_rpc

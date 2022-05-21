@@ -3,7 +3,7 @@
 VERSION_ID_NUM=$(sed 's/\.//g' <<< $VERSION_ID)
 # Includes Ubuntu, Debian
 # Minimal install
-apt-get install -y gcc g++ make cmake libcunit1-dev libaio-dev libssl-dev libjson-c-dev libcmocka-dev \
+apt-get install -y gcc g++ make libcunit1-dev libaio-dev libssl-dev libjson-c-dev libcmocka-dev \
 	uuid-dev libiscsi-dev python libncurses5-dev libncursesw5-dev python3-pip
 pip3 install ninja
 if ! pip3 install meson; then
@@ -15,6 +15,9 @@ fi
 pip3 install pyelftools
 pip3 install ijson
 pip3 install python-magic
+pip3 install grpcio
+pip3 install grpcio-tools
+pip3 install pyyaml
 # Additional dependencies for SPDK CLI - not available on older Ubuntus
 apt-get install -y python3-configshell-fb python3-pexpect || echo \
 	"Note: Some SPDK CLI dependencies could not be installed."

@@ -23,6 +23,15 @@ safe for race conditions.
 
 A new RPC `bdev_nvme_get_io_paths` was added to get all active I/O paths.
 
+A new RPC `bdev_nvme_set_preferred_path` was added to set preferred I/O path for an NVMe bdev
+when in multipath mode. This RPC does not support NVMe bdevs in failover mode.
+
+A new RPC `bdev_nvme_set_multipath_policy` was added to set multipath policy of a NVMe bdev
+in multipath mode.
+
+A new option `disable_auto_failback` was added to the `bdev_nvme_set_options` RPC to disable
+automatic failback.
+
 ### idxd
 
 A new parameter `flags` was added to all low level submission and preparation
@@ -67,11 +76,21 @@ New parameters, `ctrlr_loss_timeout_sec`, `reconnect_delay_sec`, and `fast_io_fa
 added to the RPC `bdev_nvme_set_options`. They can be overridden if they are given by the RPC
 `bdev_nvme_attach_controller`.
 
+### blobstore
+
+New functions `spdk_blob_io_writev_ext` and `spdk_blob_io_readv_ext` are added. The new functions accept
+`spdk_blob_ext_io_opts` structure with extended IO request options.
+
 ### event
 
 Added `msg_mempool_size` parameter to `spdk_reactors_init` and `spdk_thread_lib_init_ext`.
 The size of `g_spdk_msg_mempool` can now be controlled through the same-named
 user option of `spdk_app_opts` structure.
+
+### nvme
+
+The API `spdk_nvme_ctrlr_prepare_for_reset()` was deprecated. The functionality provided by the
+`spdk_nvme_ctrlr_prepare_for_reset()` was merged into the API `spdk_nvme_ctrlr_disconnect()`.
 
 ### nvmf
 
@@ -107,6 +126,17 @@ virtual bdev combines multiple underlying bdevs together. The layout of the unde
 bdevs is one after another. The concat bdev is extendable. When the free space of the
 concat bdev is not enough, the user can deconstruct the concat bdev, then reconstruct it
 with an additional underlying bdev.
+
+### sock
+
+Allow MSG_ZEROCOPY flag to be set or not according to data size, which can be enabled and
+set by setting "zerocopy_threshold". zerocopy_threshold = 0 means disable this function;
+zerocopy_threshold > 0 means enable it and use this value as the threshold.
+
+### rpc
+
+Introduced `zerocopy_threshold` to enable zerocopy on send for server sockets according to
+data size to be flushed.
 
 ## v22.01
 

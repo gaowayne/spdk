@@ -2963,6 +2963,7 @@ transport_ack_timeout      | Optional | number      | Time to wait ack until ret
 ctrlr_loss_timeout_sec     | Optional | number      | Time to wait until ctrlr is reconnected before deleting ctrlr.  -1 means infinite reconnects. 0 means no reconnect.
 reconnect_delay_sec        | Optional | number      | Time to delay a reconnect trial. 0 means no reconnect.
 fast_io_fail_timeout_sec   | Optional | number      | Time to wait until ctrlr is reconnected before failing I/O to ctrlr. 0 means no such timeout.
+disable_auto_failback      | Optional | boolean     | Disable automatic failback. The RPC bdev_nvme_set_preferred_path can be used to do manual failback.
 
 #### Example
 
@@ -3274,6 +3275,7 @@ adrfam                     | Optional | string      | NVMe-oF target adrfam: ipv
 trsvcid                    | Optional | string      | NVMe-oF target trsvcid: port number
 hostnqn                    | Optional | string      | NVMe-oF target hostnqn
 wait_for_attach            | Optional | bool        | Wait to complete until all discovered NVM subsystems are attached
+attach_timeout_ms          | Optional | number      | Time to wait until the discovery and all discovered NVM subsystems are attached
 ctrlr_loss_timeout_sec     | Optional | number      | Time to wait until ctrlr is reconnected before deleting ctrlr.  -1 means infinite reconnects. 0 means no reconnect.
 reconnect_delay_sec        | Optional | number      | Time to delay a reconnect trial. 0 means no reconnect.
 fast_io_fail_timeout_sec   | Optional | number      | Time to wait until ctrlr is reconnected before failing I/O to ctrlr. 0 means no such timeout.
@@ -3344,6 +3346,43 @@ Example response:
 }
 ~~~
 
+### bdev_nvme_get_discovery_info {#rpc_bdev_nvme_get_discovery_info}
+
+Get information about the discovery service.
+
+#### Example
+
+Example request:
+~~~json
+{
+  "jsonrpc": "2.0",
+  "method": "bdev_nvme_get_discovery_info",
+  "id": 1
+}
+~~~
+
+Example response:
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": [
+    {
+      "name": "nvme-disc",
+      "trid": {
+        "trtype": "TCP",
+        "adrfam": "IPv4",
+        "traddr": "127.0.0.1",
+        "trsvcid": "8009",
+        "subnqn": "nqn.2014-08.org.nvmexpress.discovery"
+      },
+      "referrals": []
+    }
+  ]
+}
+~~~
+
 ### bdev_nvme_get_io_paths {#rpc_bdev_nvme_get_io_paths}
 
 Display all or the specified NVMe bdev's active I/O paths.
@@ -3391,6 +3430,82 @@ Example response:
       }
     ]
   }
+}
+~~~
+
+### bdev_nvme_set_preferred_path {#rpc_bdev_nvme_set_preferred_path}
+
+Set the preferred I/O path for an NVMe bdev in multipath mode.
+
+NOTE: This RPC does not support NVMe bdevs in failover mode.
+
+#### Parameters
+
+Name                    | Optional | Type        | Description
+----------------------- | -------- | ----------- | -----------
+name                    | Required | string      | Name of the NVMe bdev
+cntlid                  | Required | number      | NVMe-oF controller ID
+
+#### Example
+
+Example request:
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "method": "bdev_nvme_set_preferred_path",
+  "id": 1,
+  "params": {
+    "name": "Nvme0n1",
+    "cntlid": 0
+  }
+}
+~~~
+
+Example response:
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": true
+}
+~~~
+
+### bdev_nvme_set_multipath_policy {#rpc_bdev_nvme_set_multipath_policy}
+
+Set multipath policy of the NVMe bdev in multipath mode.
+
+#### Parameters
+
+Name                    | Optional | Type        | Description
+----------------------- | -------- | ----------- | -----------
+name                    | Required | string      | Name of the NVMe bdev
+policy                  | Required | string      | Multipath policy: active_active or active_passive
+
+#### Example
+
+Example request:
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "method": "bdev_nvme_set_multipath_policy",
+  "id": 1,
+  "params": {
+    "name": "Nvme0n1",
+    "policy": "active_passive"
+  }
+}
+~~~
+
+Example response:
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": true
 }
 ~~~
 

@@ -40,6 +40,7 @@
 #include <rte_vhost.h>
 
 #include "spdk_internal/vhost_user.h"
+#include "spdk/bdev.h"
 #include "spdk/log.h"
 #include "spdk/util.h"
 #include "spdk/rpc.h"
@@ -75,7 +76,8 @@
 	(1ULL << VIRTIO_F_NOTIFY_ON_EMPTY) | \
 	(1ULL << VIRTIO_RING_F_EVENT_IDX) | \
 	(1ULL << VIRTIO_RING_F_INDIRECT_DESC) | \
-	(1ULL << VIRTIO_F_RING_PACKED))
+	(1ULL << VIRTIO_F_RING_PACKED) | \
+	(1ULL << VIRTIO_F_ANY_LAYOUT))
 
 #define SPDK_VHOST_DISABLED_FEATURES ((1ULL << VIRTIO_RING_F_EVENT_IDX) | \
 	(1ULL << VIRTIO_F_NOTIFY_ON_EMPTY))
@@ -246,7 +248,14 @@ struct spdk_vhost_user_dev_backend {
 	int (*stop_session)(struct spdk_vhost_session *vsession);
 };
 
+enum vhost_backend_type {
+	VHOST_BACKEND_BLK = 0,
+	VHOST_BACKEND_SCSI,
+};
+
 struct spdk_vhost_dev_backend {
+	enum vhost_backend_type type;
+
 	int (*vhost_get_config)(struct spdk_vhost_dev *vdev, uint8_t *config, uint32_t len);
 	int (*vhost_set_config)(struct spdk_vhost_dev *vdev, uint8_t *config,
 				uint32_t offset, uint32_t size, uint32_t flags);
@@ -512,6 +521,10 @@ int remove_vhost_controller(struct spdk_vhost_dev *vdev);
 struct spdk_io_channel *vhost_blk_get_io_channel(struct spdk_vhost_dev *vdev);
 void vhost_blk_put_io_channel(struct spdk_io_channel *ch);
 
+/* The spdk_bdev pointer should only be used to retrieve
+ * the device properties, ex. number of blocks or I/O type supported. */
+struct spdk_bdev *vhost_blk_get_bdev(struct spdk_vhost_dev *vdev);
+
 /* Function calls from vhost.c to rte_vhost_user.c,
  * shall removed once virtio transport abstraction is complete. */
 int vhost_user_session_set_coalescing(struct spdk_vhost_dev *dev,
@@ -522,7 +535,25 @@ int vhost_user_dev_register(struct spdk_vhost_dev *vdev, const char *name,
 			    struct spdk_cpuset *cpumask, const struct spdk_vhost_user_dev_backend *user_backend);
 int vhost_user_dev_unregister(struct spdk_vhost_dev *vdev);
 int vhost_user_init(void);
-typedef void (*vhost_fini_cb)(void *ctx);
-void vhost_user_fini(vhost_fini_cb vhost_cb);
+void vhost_user_fini(spdk_vhost_fini_cb vhost_cb);
+
+struct spdk_vhost_blk_task {
+	struct spdk_bdev_io *bdev_io;
+
+	volatile uint8_t *status;
+
+	/* for io wait */
+	struct spdk_bdev_io_wait_entry bdev_io_wait;
+	struct spdk_io_channel *bdev_io_wait_ch;
+	struct spdk_vhost_dev *bdev_io_wait_vdev;
+
+	/** Number of bytes that were written. */
+	uint32_t used_len;
+	uint16_t iovcnt;
+	struct iovec iovs[SPDK_VHOST_IOVS_MAX];
+
+	/** Size of whole payload in bytes */
+	uint32_t payload_size;
+};
 
 #endif /* SPDK_VHOST_INTERNAL_H */

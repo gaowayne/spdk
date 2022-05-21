@@ -163,6 +163,12 @@ extern pid_t g_spdk_nvme_pid;
  */
 #define NVME_QUIRK_MDTS_EXCLUDE_MD 0x8000
 
+/**
+ * Force not to use SGL even the controller report that it can
+ * support it.
+ */
+#define NVME_QUIRK_NOT_USE_SGL 0x10000
+
 #define NVME_MAX_ASYNC_EVENTS	(8)
 
 #define NVME_MAX_ADMIN_TIMEOUT_IN_SECS	(30)
@@ -446,7 +452,7 @@ struct spdk_nvme_qpair {
 	 */
 	uint8_t					no_deletion_notification_needed: 1;
 
-	uint8_t					first_fused_submitted: 1;
+	uint8_t					last_fuse: 2;
 
 	uint8_t					transport_failure_reason: 2;
 	uint8_t					last_transport_failure_reason: 2;
@@ -625,6 +631,11 @@ enum nvme_ctrlr_state {
 	 * Waiting for CSTS register to be read as part of waiting for CSTS.RDY = 0.
 	 */
 	NVME_CTRLR_STATE_DISABLE_WAIT_FOR_READY_0_WAIT_FOR_CSTS,
+
+	/**
+	 * The controller is disabled. (CC.EN and CSTS.RDY are 0.)
+	 */
+	NVME_CTRLR_STATE_DISABLED,
 
 	/**
 	 * Enable the controller by writing CC.EN to 1
@@ -1174,6 +1185,8 @@ int	nvme_ctrlr_destruct_poll_async(struct spdk_nvme_ctrlr *ctrlr,
 				       struct nvme_ctrlr_detach_ctx *ctx);
 void	nvme_ctrlr_fail(struct spdk_nvme_ctrlr *ctrlr, bool hot_remove);
 int	nvme_ctrlr_process_init(struct spdk_nvme_ctrlr *ctrlr);
+void	nvme_ctrlr_disable(struct spdk_nvme_ctrlr *ctrlr);
+int	nvme_ctrlr_disable_poll(struct spdk_nvme_ctrlr *ctrlr);
 void	nvme_ctrlr_connected(struct spdk_nvme_probe_ctx *probe_ctx,
 			     struct spdk_nvme_ctrlr *ctrlr);
 

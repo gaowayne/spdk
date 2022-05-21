@@ -4,33 +4,44 @@ testdir=$(readlink -f $(dirname $0))
 rootdir=$(readlink -f $testdir/../..)
 source $rootdir/test/common/autotest_common.sh
 
+function beetle_ssh() {
+	ssh_opts="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+	if [[ -n $BEETLE_SSH_KEY ]]; then
+		ssh_opts+=" -i $(readlink -f $BEETLE_SSH_KEY)"
+	fi
+
+	#shellcheck disable=SC2029
+	ssh $ssh_opts root@$ip "$@"
+}
+
 function insert_device() {
-	ssh root@$ip 'Beetle --SetGpio "$gpio" HIGH'
+	beetle_ssh 'Beetle --SetGpio "$gpio" HIGH'
 	waitforblk $name
 	DRIVER_OVERRIDE=$driver $rootdir/scripts/setup.sh
 }
 
 function remove_device() {
-	ssh root@$ip 'Beetle --SetGpio "$gpio" LOW'
+	beetle_ssh 'Beetle --SetGpio "$gpio" LOW'
 }
 
 function restore_device() {
-	ssh root@$ip 'Beetle --SetGpio "$gpio" HIGH'
+	beetle_ssh 'Beetle --SetGpio "$gpio" HIGH'
 }
 
 ip=$1
 gpio=$2
 driver=$3
+
 declare -i io_time=5
 declare -i kernel_hotplug_time=7
 
 timing_enter hotplug_hw_cfg
 
 # Configure microcontroller
-ssh root@$ip 'Beetle --SetGpioDirection "$gpio" OUT'
+beetle_ssh 'Beetle --SetGpioDirection "$gpio" OUT'
 
 # Get blk dev name connected to interposer
-ssh root@$ip 'Beetle --SetGpio "$gpio" HIGH'
+beetle_ssh 'Beetle --SetGpio "$gpio" HIGH'
 sleep $kernel_hotplug_time
 $rootdir/scripts/setup.sh reset
 blk_list1=$(lsblk -d --output NAME | grep "^nvme")
@@ -66,7 +77,7 @@ while ! grep "Starting I/O" $testdir/log.txt; do
 done
 
 if ! grep "Starting I/O" $testdir/log.txt; then
-	return 1
+	exit 1
 fi
 
 # Add and remove NVMe with delays between to give some time for IO to proceed
@@ -83,7 +94,7 @@ timing_enter wait_for_example
 
 if ! wait $hotplug_pid; then
 	echo "Hotplug example returned error!"
-	return 1
+	exit 1
 fi
 
 timing_exit wait_for_example

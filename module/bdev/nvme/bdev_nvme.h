@@ -48,8 +48,13 @@ extern bool g_bdev_nvme_module_finish;
 
 #define NVME_MAX_CONTROLLERS 1024
 
+enum bdev_nvme_multipath_policy {
+	BDEV_NVME_MP_POLICY_ACTIVE_PASSIVE,
+	BDEV_NVME_MP_POLICY_ACTIVE_ACTIVE,
+};
+
 typedef void (*spdk_bdev_create_nvme_fn)(void *ctx, size_t bdev_count, int rc);
-typedef void (*spdk_bdev_nvme_start_discovery_fn)(void *ctx);
+typedef void (*spdk_bdev_nvme_start_discovery_fn)(void *ctx, int status);
 typedef void (*spdk_bdev_nvme_stop_discovery_fn)(void *ctx);
 
 struct nvme_ctrlr_opts {
@@ -166,14 +171,15 @@ struct nvme_bdev_ctrlr {
 };
 
 struct nvme_bdev {
-	struct spdk_bdev	disk;
-	uint32_t		nsid;
-	struct nvme_bdev_ctrlr	*nbdev_ctrlr;
-	pthread_mutex_t		mutex;
-	int			ref;
-	TAILQ_HEAD(, nvme_ns)	nvme_ns_list;
-	bool			opal;
-	TAILQ_ENTRY(nvme_bdev)	tailq;
+	struct spdk_bdev		disk;
+	uint32_t			nsid;
+	struct nvme_bdev_ctrlr		*nbdev_ctrlr;
+	pthread_mutex_t			mutex;
+	int				ref;
+	enum bdev_nvme_multipath_policy	mp_policy;
+	TAILQ_HEAD(, nvme_ns)		nvme_ns_list;
+	bool				opal;
+	TAILQ_ENTRY(nvme_bdev)		tailq;
 };
 
 struct nvme_qpair {
@@ -207,6 +213,7 @@ struct nvme_io_path {
 
 struct nvme_bdev_channel {
 	struct nvme_io_path			*current_io_path;
+	enum bdev_nvme_multipath_policy		mp_policy;
 	STAILQ_HEAD(, nvme_io_path)		io_path_list;
 	TAILQ_HEAD(retry_io_head, spdk_bdev_io)	retry_io_list;
 	struct spdk_poller			*retry_io_poller;
@@ -269,6 +276,7 @@ struct spdk_bdev_nvme_opts {
 	int32_t ctrlr_loss_timeout_sec;
 	uint32_t reconnect_delay_sec;
 	uint32_t fast_io_fail_timeout_sec;
+	bool disable_auto_failback;
 };
 
 struct spdk_nvme_qpair *bdev_nvme_get_io_qpair(struct spdk_io_channel *ctrlr_io_ch);
@@ -290,9 +298,10 @@ int bdev_nvme_create(struct spdk_nvme_transport_id *trid,
 
 int bdev_nvme_start_discovery(struct spdk_nvme_transport_id *trid, const char *base_name,
 			      struct spdk_nvme_ctrlr_opts *drv_opts, struct nvme_ctrlr_opts *bdev_opts,
-			      spdk_bdev_nvme_start_discovery_fn cb_fn, void *cb_ctx);
+			      uint64_t timeout, spdk_bdev_nvme_start_discovery_fn cb_fn, void *cb_ctx);
 int bdev_nvme_stop_discovery(const char *name, spdk_bdev_nvme_stop_discovery_fn cb_fn,
 			     void *cb_ctx);
+void bdev_nvme_get_discovery_info(struct spdk_json_write_ctx *w);
 
 struct spdk_nvme_ctrlr *bdev_nvme_get_ctrlr(struct spdk_bdev *bdev);
 
@@ -317,5 +326,34 @@ int bdev_nvme_delete(const char *name, const struct nvme_path_id *path_id);
  * -EBUSY: controller is already being reset.
  */
 int bdev_nvme_reset_rpc(struct nvme_ctrlr *nvme_ctrlr, bdev_nvme_reset_cb cb_fn, void *cb_arg);
+
+typedef void (*bdev_nvme_set_preferred_path_cb)(void *cb_arg, int rc);
+
+/**
+ * Set the preferred I/O path for an NVMe bdev in multipath mode.
+ *
+ * NOTE: This function does not support NVMe bdevs in failover mode.
+ *
+ * \param name NVMe bdev name
+ * \param cntlid NVMe-oF controller ID
+ * \param cb_fn Function to be called back after completion.
+ * \param cb_arg Argument for callback function.
+ */
+void bdev_nvme_set_preferred_path(const char *name, uint16_t cntlid,
+				  bdev_nvme_set_preferred_path_cb cb_fn, void *cb_arg);
+
+typedef void (*bdev_nvme_set_multipath_policy_cb)(void *cb_arg, int rc);
+
+/**
+ * Set multipath policy of the NVMe bdev.
+ *
+ * \param name NVMe bdev name
+ * \param policy Multipath policy (active-passive or active-active)
+ * \param cb_fn Function to be called back after completion.
+ */
+void bdev_nvme_set_multipath_policy(const char *name,
+				    enum bdev_nvme_multipath_policy policy,
+				    bdev_nvme_set_multipath_policy_cb cb_fn,
+				    void *cb_arg);
 
 #endif /* SPDK_BDEV_NVME_H */

@@ -191,11 +191,11 @@ nvme_get_sgl(char *buf, size_t size, struct spdk_nvme_cmd *cmd)
 		     nvme_get_string(sgl_subtype, sgl->generic.subtype), sgl->address);
 	assert(c >= 0 && (size_t)c < size);
 
-	if (sgl->generic.type == SPDK_NVME_SGL_TYPE_KEYED_DATA_BLOCK) {
+	if (sgl->generic.type == SPDK_NVME_SGL_TYPE_DATA_BLOCK) {
 		nvme_get_sgl_unkeyed(buf + c, size - c, cmd);
 	}
 
-	if (sgl->generic.type == SPDK_NVME_SGL_TYPE_DATA_BLOCK) {
+	if (sgl->generic.type == SPDK_NVME_SGL_TYPE_KEYED_DATA_BLOCK) {
 		nvme_get_sgl_keyed(buf + c, size - c, cmd);
 	}
 }
@@ -597,14 +597,17 @@ nvme_qpair_abort_queued_reqs_with_cbarg(struct spdk_nvme_qpair *qpair, void *cmd
 	uint32_t		aborting = 0;
 
 	STAILQ_FOREACH_SAFE(req, &qpair->queued_req, stailq, tmp) {
-		if (req->cb_arg == cmd_cb_arg) {
-			STAILQ_REMOVE(&qpair->queued_req, req, nvme_request, stailq);
-			STAILQ_INSERT_TAIL(&qpair->aborting_queued_req, req, stailq);
-			if (!qpair->ctrlr->opts.disable_error_logging) {
-				SPDK_ERRLOG("aborting queued i/o\n");
-			}
-			aborting++;
+		if ((req->cb_arg != cmd_cb_arg) &&
+		    (req->parent == NULL || req->parent->cb_arg != cmd_cb_arg)) {
+			continue;
 		}
+
+		STAILQ_REMOVE(&qpair->queued_req, req, nvme_request, stailq);
+		STAILQ_INSERT_TAIL(&qpair->aborting_queued_req, req, stailq);
+		if (!qpair->ctrlr->opts.disable_error_logging) {
+			SPDK_ERRLOG("aborting queued i/o\n");
+		}
+		aborting++;
 	}
 
 	return aborting;

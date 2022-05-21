@@ -1,7 +1,6 @@
 from .helpers import deprecated_alias
 
 
-@deprecated_alias('set_bdev_options')
 def bdev_set_options(client, bdev_io_pool_size=None, bdev_io_cache_size=None, bdev_auto_examine=None,
                      small_buf_pool_size=None, large_buf_pool_size=None):
     """Set parameters for the bdev subsystem.
@@ -243,7 +242,6 @@ def bdev_ocf_set_seqcutoff(client, name, policy, threshold, promotion_count):
     return client.call('bdev_ocf_set_seqcutoff', params)
 
 
-@deprecated_alias('construct_malloc_bdev')
 def bdev_malloc_create(client, num_blocks, block_size, name=None, uuid=None, optimal_io_boundary=None):
     """Construct a malloc block device.
 
@@ -267,7 +265,6 @@ def bdev_malloc_create(client, num_blocks, block_size, name=None, uuid=None, opt
     return client.call('bdev_malloc_create', params)
 
 
-@deprecated_alias('delete_malloc_bdev')
 def bdev_malloc_delete(client, name):
     """Delete malloc block device.
 
@@ -278,7 +275,6 @@ def bdev_malloc_delete(client, name):
     return client.call('bdev_malloc_delete', params)
 
 
-@deprecated_alias('construct_null_bdev')
 def bdev_null_create(client, num_blocks, block_size, name, uuid=None, md_size=None,
                      dif_type=None, dif_is_head_of_md=None):
     """Construct a null block device.
@@ -308,7 +304,6 @@ def bdev_null_create(client, num_blocks, block_size, name, uuid=None, md_size=No
     return client.call('bdev_null_create', params)
 
 
-@deprecated_alias('delete_null_bdev')
 def bdev_null_delete(client, name):
     """Remove null bdev from the system.
 
@@ -465,7 +460,7 @@ def bdev_nvme_set_options(client, action_on_timeout=None, timeout_us=None, timeo
                           nvme_adminq_poll_period_us=None, nvme_ioq_poll_period_us=None, io_queue_requests=None,
                           delay_cmd_submit=None, transport_retry_count=None, bdev_retry_count=None,
                           transport_ack_timeout=None, ctrlr_loss_timeout_sec=None, reconnect_delay_sec=None,
-                          fast_io_fail_timeout_sec=None):
+                          fast_io_fail_timeout_sec=None, disable_auto_failback=None):
     """Set options for the bdev nvme. This is startup command.
 
     Args:
@@ -501,6 +496,8 @@ def bdev_nvme_set_options(client, action_on_timeout=None, timeout_us=None, timeo
         If fast_io_fail_timeout_sec is not zero, it has to be not less than reconnect_delay_sec and less than
         ctrlr_loss_timeout_sec if ctrlr_loss_timeout_sec is not -1.
         This can be overridden by bdev_nvme_attach_controller. (optional)
+        disable_auto_failback: Disable automatic failback. bdev_nvme_set_preferred_path can be used to do manual failback.
+        By default, immediately failback to the preferred I/O path if it is restored. (optional)
 
     """
     params = {}
@@ -562,6 +559,9 @@ def bdev_nvme_set_options(client, action_on_timeout=None, timeout_us=None, timeo
 
     if fast_io_fail_timeout_sec is not None:
         params['fast_io_fail_timeout_sec'] = fast_io_fail_timeout_sec
+
+    if disable_auto_failback is not None:
+        params['disable_auto_failback'] = disable_auto_failback
 
     return client.call('bdev_nvme_set_options', params)
 
@@ -746,7 +746,8 @@ def bdev_nvme_reset_controller(client, name):
 
 def bdev_nvme_start_discovery(client, name, trtype, traddr, adrfam=None, trsvcid=None,
                               hostnqn=None, wait_for_attach=None, ctrlr_loss_timeout_sec=None,
-                              reconnect_delay_sec=None, fast_io_fail_timeout_sec=None):
+                              reconnect_delay_sec=None, fast_io_fail_timeout_sec=None,
+                              attach_timeout_ms=None):
     """Start discovery with the specified discovery subsystem
 
     Args:
@@ -771,6 +772,7 @@ def bdev_nvme_start_discovery(client, name, trtype, traddr, adrfam=None, trsvcid
         0 means no such timeout.
         If fast_io_fail_timeout_sec is not zero, it has to be not less than reconnect_delay_sec and less than
         ctrlr_loss_timeout_sec if ctrlr_loss_timeout_sec is not -1. (optional)
+        attach_timeout_ms: Time to wait until the discovery and all discovered NVM subsystems are attached (optional)
     """
     params = {'name': name,
               'trtype': trtype,
@@ -787,6 +789,9 @@ def bdev_nvme_start_discovery(client, name, trtype, traddr, adrfam=None, trsvcid
 
     if wait_for_attach:
         params['wait_for_attach'] = True
+
+    if attach_timeout_ms is not None:
+        params['attach_timeout_ms'] = attach_timeout_ms
 
     if ctrlr_loss_timeout_sec is not None:
         params['ctrlr_loss_timeout_sec'] = ctrlr_loss_timeout_sec
@@ -811,6 +816,12 @@ def bdev_nvme_stop_discovery(client, name):
     return client.call('bdev_nvme_stop_discovery', params)
 
 
+def bdev_nvme_get_discovery_info(client):
+    """Get information about the automatic discovery
+    """
+    return client.call('bdev_nvme_get_discovery_info')
+
+
 def bdev_nvme_get_io_paths(client, name):
     """Display all or the specified NVMe bdev's active I/O paths
 
@@ -824,6 +835,34 @@ def bdev_nvme_get_io_paths(client, name):
     if name:
         params['name'] = name
     return client.call('bdev_nvme_get_io_paths', params)
+
+
+def bdev_nvme_set_preferred_path(client, name, cntlid):
+    """Set the preferred I/O path for an NVMe bdev when in multipath mode
+
+    Args:
+        name: NVMe bdev name
+        cntlid: NVMe-oF controller ID
+    """
+
+    params = {'name': name,
+              'cntlid': cntlid}
+
+    return client.call('bdev_nvme_set_preferred_path', params)
+
+
+def bdev_nvme_set_multipath_policy(client, name, policy):
+    """Set multipath policy of the NVMe bdev
+
+    Args:
+        name: NVMe bdev name
+        policy: Multipath policy (active_passive or active_active)
+    """
+
+    params = {'name': name,
+              'policy': policy}
+
+    return client.call('bdev_nvme_set_multipath_policy', params)
 
 
 def bdev_nvme_cuse_register(client, name):
@@ -1320,7 +1359,6 @@ def bdev_ftl_delete(client, name):
     return client.call('bdev_ftl_delete', params)
 
 
-@deprecated_alias('get_bdevs')
 def bdev_get_bdevs(client, name=None, timeout=None):
     """Get information about block devices.
 
@@ -1339,7 +1377,6 @@ def bdev_get_bdevs(client, name=None, timeout=None):
     return client.call('bdev_get_bdevs', params)
 
 
-@deprecated_alias('get_bdevs_iostat')
 def bdev_get_iostat(client, name=None):
     """Get I/O statistics for block devices.
 
@@ -1355,7 +1392,6 @@ def bdev_get_iostat(client, name=None):
     return client.call('bdev_get_iostat', params)
 
 
-@deprecated_alias('enable_bdev_histogram')
 def bdev_enable_histogram(client, name, enable):
     """Control whether histogram is enabled for specified bdev.
 
@@ -1366,7 +1402,6 @@ def bdev_enable_histogram(client, name, enable):
     return client.call('bdev_enable_histogram', params)
 
 
-@deprecated_alias('get_bdev_histogram')
 def bdev_get_histogram(client, name):
     """Get histogram for specified bdev.
 
@@ -1397,7 +1432,6 @@ def bdev_error_inject_error(client, name, io_type, error_type, num=1):
     return client.call('bdev_error_inject_error', params)
 
 
-@deprecated_alias('set_bdev_qd_sampling_period')
 def bdev_set_qd_sampling_period(client, name, period):
     """Enable queue depth tracking on a specified bdev.
 
@@ -1412,7 +1446,6 @@ def bdev_set_qd_sampling_period(client, name, period):
     return client.call('bdev_set_qd_sampling_period', params)
 
 
-@deprecated_alias('set_bdev_qos_limit')
 def bdev_set_qos_limit(
         client,
         name,
